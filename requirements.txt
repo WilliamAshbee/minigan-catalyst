@@ -1,0 +1,16 @@
+catalyst @ git+https://github.com/catalyst-team/catalyst@51428d7756e62b9b8ee5379f38e9fd576eeb36e5
+certifi==2020.12.5
+future==0.18.2
+numpy==1.19.4
+packaging==20.8
+Pillow==8.0.1
+protobuf==3.14.0
+pyparsing==2.4.7
+PyYAML==5.3.1
+scipy==1.5.4
+six==1.15.0
+tensorboardX==2.1
+torch==1.5.1+cu101
+torchvision==0.6.1+cu101
+tqdm==4.54.1
+typing-extensions==3.7.4.3
