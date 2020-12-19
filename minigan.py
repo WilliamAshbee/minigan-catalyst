@@ -9,7 +9,10 @@ from catalyst.contrib.datasets import MNIST
 from catalyst.contrib.nn.modules import Flatten, GlobalMaxPool2d, Lambda
 from resnet import resnet18, resnext101_32x8d
 from DonutDataset import DonutDataset
-
+from torch.utils import data
+from torch.utils.data import DataLoader, TensorDataset, RandomSampler
+from torch.autograd import Variable
+cuda = True
 latent_dim = 128
 
 ##############lstm
@@ -43,7 +46,7 @@ class LSTMClassifier(nn.Module):
             nn.Sigmoid()
         )
 
-        # self.hidden = self.init_hidden()
+        self.hidden = self.init_hidden()
 
     def init_hidden(self):
         if cuda:
@@ -55,6 +58,7 @@ class LSTMClassifier(nn.Module):
         return (h0, c0)
 
     def forward(self, x): # x is (batch_size, 1, 200), permute to (200, batch_size, 1)
+        #print("permute",x.shape)
         x = x.permute(2, 0, 1)
         # See: https://discuss.pytorch.org/t/solved-why-we-need-to-detach-variable-which-contains-hidden-representation/1426/2
         lstm_out, (h, c) = self.lstm(x, self.init_hidden())
@@ -63,7 +67,7 @@ class LSTMClassifier(nn.Module):
 
 
 def get_model(): # tuples of (batch_size, model)
-    LSTMClassifier(
+    return LSTMClassifier(
         in_dim=2,
         hidden_dim=120,
         num_layers=3,
@@ -90,9 +94,10 @@ optimizer = {
 #    "train": DataLoader(MNIST(os.getcwd(), train=True, download=True, transform=ToTensor()), batch_size=32),
 #}
 
-dataset_train = DonutDataset(4000)
+dataset_train = DonutDataset(400)
 dataset_val = DonutDataset(256)
 
+mini_batch = 256
 loader_train = data.DataLoader(
     dataset_train, batch_size=mini_batch,
     sampler=RandomSampler(data_source = dataset_train),
@@ -103,44 +108,59 @@ loader_val = data.DataLoader(
     sampler=RandomSampler(data_source = dataset_val),
     num_workers=4)
 
-loaders = {"train": loader_train, "valid": loader_val}
+#loaders = {"train": loader_train, "valid": loader_val}
+loaders = {"train": loader_train}
 
 
 class CustomRunner(dl.Runner):
 
     def _handle_batch(self, batch):
-        real_images, _ = batch
+        images = batch[0].cuda()
+        sequence = batch[1].cuda()
+        #real_images, _ = batch
         batch_metrics = {}
         
         # Sample random points in the latent space
-        batch_size = real_images.shape[0]
-        random_latent_vectors = torch.randn(batch_size, latent_dim).to(self.device)
+        #batch_size = real_images.shape[0]
+        #random_latent_vectors = torch.randn(batch_size, latent_dim).to(self.device)
         
         # Decode them to fake images
-        generated_images = self.model["generator"](random_latent_vectors).detach()
+        #generated_images = self.model["generator"](random_latent_vectors).detach()
+        #print('batch',batch[0])
+        #print('batch',batch[1])
+        generated_sequence = self.model['generator'](images[128:])
+        generated_sequence = generated_sequence.reshape(-1,2,1000)
+        print(generated_sequence.shape)
+        print(batch[1].shape)
+        print('+-+-+-\n')
+
+        combined_sequence = torch.cat([generated_sequence,sequence[128:]], axis = 0).cuda()
+        labels = torch.zeros((256,1)).cuda()
+        labels[-128] = 1
         # Combine them with real images
-        combined_images = torch.cat([generated_images, real_images])
+        #combined_images = torch.cat([generated_images, real_images])
         
         # Assemble labels discriminating real from fake images
-        labels = torch.cat([
-            torch.ones((batch_size, 1)), torch.zeros((batch_size, 1))
-        ]).to(self.device)
+        #labels = torch.cat([
+        #    torch.ones((batch_size, 1)), torch.zeros((batch_size, 1))
+        #]).to(self.device)
         # Add random noise to the labels - important trick!
-        labels += 0.05 * torch.rand(labels.shape).to(self.device)
+        #labels += 0.05 * torch.rand(labels.shape).to(self.device)
         
         # Train the discriminator
-        predictions = self.model["discriminator"](combined_images)
+        predictions = self.model["discriminator"](combined_sequence)
         batch_metrics["loss_discriminator"] = \
           F.binary_cross_entropy_with_logits(predictions, labels)
         
         # Sample random points in the latent space
-        random_latent_vectors = torch.randn(batch_size, latent_dim).to(self.device)
+        #random_latent_vectors = torch.randn(batch_size, latent_dim).to(self.device)
         # Assemble labels that say "all real images"
-        misleading_labels = torch.zeros((batch_size, 1)).to(self.device)
+        misleading_labels = torch.zeros((128*2, 1)).cuda()
         
         # Train the generator
-        generated_images = self.model["generator"](random_latent_vectors)
-        predictions = self.model["discriminator"](generated_images)
+        generated_sequence = self.model["generator"](images) #this needs to be redone !!!!!!!
+        generated_sequence = generated_sequence.reshape(-1,2,1000)
+        predictions = self.model["discriminator"](generated_sequence)
         batch_metrics["loss_generator"] = \
           F.binary_cross_entropy_with_logits(predictions, misleading_labels)
         
@@ -166,3 +186,4 @@ runner.train(
     verbose=True,
     logdir="./logs_gan2",
 )
+

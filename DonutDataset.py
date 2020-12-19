@@ -68,11 +68,14 @@ def donut_matrix(length = 10):
     assert torch.sum(y[y>(side-1)])==0 
     assert torch.sum(y[y<0])==0 
     
-    points = torch.zeros(length,numpoints,2)
+    points = torch.zeros(length,2,numpoints)
     for l in range(length):
         canvas[l,x[l,:].type(torch.LongTensor),y[l,:].type(torch.LongTensor)]=1.0
-        points[l,:,0] = x[l,:]
-        points[l,:,1] = y[l,:]
+        #points[l,:,0] = x[l,:]
+        #points[l,:,1] = y[l,:]
+        points[l,0,:] = x[l,:]#modified for lstm discriminator
+        points[l,1,:] = y[l,:]#modified for lstm discriminator 
+    
     
     return {
         'canvas': canvas, 
@@ -151,7 +154,7 @@ class DonutDataset(torch.utils.data.Dataset):
         points = self.values["points"]
         points = points[idx,:,:]
         #points = torch.from_numpy(points)
-        assert points.shape == (numpoints,2)
+        assert points.shape == (2,numpoints)#(numpoints,2)
         
         return canvas, points
     
