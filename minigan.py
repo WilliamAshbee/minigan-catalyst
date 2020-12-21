@@ -37,10 +37,10 @@ class LSTMClassifier(nn.Module):
 
         self.hidden2label = nn.Sequential(
             nn.Linear(hidden_dim*self.num_dir, hidden_dim),
-            nn.ReLU(True),
+            nn.ReLU(inplace= False),
             nn.Dropout(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(True),
+            nn.ReLU(inplace = False),
             nn.Dropout(),
             nn.Linear(hidden_dim, num_classes),
             nn.Sigmoid()
@@ -61,7 +61,9 @@ class LSTMClassifier(nn.Module):
         #print("permute",x.shape)
         x = x.permute(2, 0, 1)
         # See: https://discuss.pytorch.org/t/solved-why-we-need-to-detach-variable-which-contains-hidden-representation/1426/2
-        lstm_out, (h, c) = self.lstm(x, self.init_hidden())
+        hidden = self.init_hidden()
+        hidden = tuple([each.data for each in hidden])
+        lstm_out, (h, c) = self.lstm(x, hidden)
         y  = self.hidden2label(lstm_out[-1])
         return y
 
@@ -84,17 +86,17 @@ def get_model(): # tuples of (batch_size, model)
 generator = resnet18(pretrained=False, progress=True).cuda()
 
 discriminator = get_model().cuda()
-
 model = {"generator": generator, "discriminator": discriminator}
+#model = {"discriminator": discriminator}
 optimizer = {
     "generator": torch.optim.Adam(generator.parameters(), lr=0.0003, betas=(0.5, 0.999)),
-    "discriminator": torch.optim.Adam(discriminator.parameters(), lr=0.0003, betas=(0.5, 0.999)),
+    "discriminator": torch.optim.Adam(discriminator.parameters(), lr=0.0003, betas=(0.5, 0.999))
 }
 #loaders = {
 #    "train": DataLoader(MNIST(os.getcwd(), train=True, download=True, transform=ToTensor()), batch_size=32),
 #}
 
-dataset_train = DonutDataset(400)
+dataset_train = DonutDataset(256*2)
 dataset_val = DonutDataset(256)
 
 mini_batch = 256
@@ -111,15 +113,21 @@ loader_val = data.DataLoader(
 #loaders = {"train": loader_train, "valid": loader_val}
 loaders = {"train": loader_train}
 
-
+torch.autograd.set_detect_anomaly(True)
 class CustomRunner(dl.Runner):
 
     def _handle_batch(self, batch):
+        
         images = batch[0].cuda()
-        sequence = batch[1].cuda()
+        
+        print('images',images.shape)
+        sequencegt = batch[1].cuda()
         #real_images, _ = batch
         batch_metrics = {}
-        
+        if batch[0].shape[0] != 256:
+            print("this is wrong!!!",batch[0].shape)
+            #images = torch.cat([images,images,images,images,images,images,images,images])
+            #sequence = torch.cat([sequence,sequence,sequence,sequence,sequence,sequence,sequence,sequence])
         # Sample random points in the latent space
         #batch_size = real_images.shape[0]
         #random_latent_vectors = torch.randn(batch_size, latent_dim).to(self.device)
@@ -130,11 +138,11 @@ class CustomRunner(dl.Runner):
         #print('batch',batch[1])
         generated_sequence = self.model['generator'](images[128:])
         generated_sequence = generated_sequence.reshape(-1,2,1000)
-        print(generated_sequence.shape)
-        print(batch[1].shape)
+        print('gensequence', generated_sequence.shape)
+        print('sequencegt', sequencegt.shape)
         print('+-+-+-\n')
 
-        combined_sequence = torch.cat([generated_sequence,sequence[128:]], axis = 0).cuda()
+        combined_sequence = torch.cat([generated_sequence,sequencegt[128:]], axis = 0).cuda()
         labels = torch.zeros((256,1)).cuda()
         labels[-128] = 1
         # Combine them with real images
@@ -155,15 +163,15 @@ class CustomRunner(dl.Runner):
         # Sample random points in the latent space
         #random_latent_vectors = torch.randn(batch_size, latent_dim).to(self.device)
         # Assemble labels that say "all real images"
-        misleading_labels = torch.zeros((128*2, 1)).cuda()
+        #misleading_labels = torch.zeros((128*2, 1)).cuda()
         
         # Train the generator
-        generated_sequence = self.model["generator"](images) #this needs to be redone !!!!!!!
-        generated_sequence = generated_sequence.reshape(-1,2,1000)
-        predictions = self.model["discriminator"](generated_sequence)
-        batch_metrics["loss_generator"] = \
-          F.binary_cross_entropy_with_logits(predictions, misleading_labels)
-        
+        #generated_sequence = self.model["generator"](images) #this needs to be redone !!!!!!!
+        #generated_sequence = generated_sequence.reshape(-1,2,1000)
+        #predictions = self.model["discriminator"](generated_sequence)
+        #batch_metrics["loss_generator"] = \
+        #  F.binary_cross_entropy_with_logits(predictions, misleading_labels)
+        #print("batchmetrics",str(**batch_metrics))
         self.batch_metrics.update(**batch_metrics)
 
 runner = CustomRunner()
@@ -172,16 +180,16 @@ runner.train(
     optimizer=optimizer,
     loaders=loaders,
     callbacks=[
-        dl.OptimizerCallback(
-            optimizer_key="generator", 
-            metric_key="loss_generator"
-        ),
+        #dl.OptimizerCallback(
+        #    optimizer_key="generator", 
+        #    metric_key="loss_generator"
+        #),
         dl.OptimizerCallback(
             optimizer_key="discriminator", 
             metric_key="loss_discriminator"
         ),
     ],
-    main_metric="loss_generator",
+    main_metric="loss_discriminator",
     num_epochs=3,
     verbose=True,
     logdir="./logs_gan2",
