@@ -118,59 +118,46 @@ class CustomRunner(dl.Runner):
 
     def _handle_batch(self, batch):
         
-        images = batch[0].cuda()
+        imagesStgGen = batch[0].detach().clone().cuda()
+        imagesStgDis = batch[0].detach().clone().cuda()
         
-        print('images',images.shape)
-        sequencegt = batch[1].cuda()
+        #print('images',images.shape)
+        sequencegtstggen = batch[1].detach().clone().cuda()
+        sequencegtstgdisc = batch[1].detach().clone().cuda()
         #real_images, _ = batch
         batch_metrics = {}
         if batch[0].shape[0] != 256:
             print("this is wrong!!!",batch[0].shape)
             #images = torch.cat([images,images,images,images,images,images,images,images])
             #sequence = torch.cat([sequence,sequence,sequence,sequence,sequence,sequence,sequence,sequence])
-        # Sample random points in the latent space
-        #batch_size = real_images.shape[0]
-        #random_latent_vectors = torch.randn(batch_size, latent_dim).to(self.device)
-        
-        # Decode them to fake images
-        #generated_images = self.model["generator"](random_latent_vectors).detach()
-        #print('batch',batch[0])
-        #print('batch',batch[1])
-        generated_sequence = self.model['generator'](images[128:])
-        generated_sequence = generated_sequence.reshape(-1,2,1000)
-        print('gensequence', generated_sequence.shape)
-        print('sequencegt', sequencegt.shape)
-        print('+-+-+-\n')
 
-        combined_sequence = torch.cat([generated_sequence,sequencegt[128:]], axis = 0).cuda()
+        #train discriminator        
+        generated_sequence = self.model['generator'](imagesStgDis[128:])
+        generated_sequence = generated_sequence.reshape(-1,2,1000)
+
+        combined_sequence = torch.cat([generated_sequence,sequencegtstgdisc[128:]], axis = 0).cuda()
         labels = torch.zeros((256,1)).cuda()
-        labels[-128] = 1
-        # Combine them with real images
-        #combined_images = torch.cat([generated_images, real_images])
-        
-        # Assemble labels discriminating real from fake images
-        #labels = torch.cat([
-        #    torch.ones((batch_size, 1)), torch.zeros((batch_size, 1))
-        #]).to(self.device)
-        # Add random noise to the labels - important trick!
-        #labels += 0.05 * torch.rand(labels.shape).to(self.device)
-        
-        # Train the discriminator
+        labels[-128:] = 1
+        labels = labels.detach().clone().cuda()
         predictions = self.model["discriminator"](combined_sequence)
         batch_metrics["loss_discriminator"] = \
           F.binary_cross_entropy_with_logits(predictions, labels)
         
-        # Sample random points in the latent space
-        #random_latent_vectors = torch.randn(batch_size, latent_dim).to(self.device)
-        # Assemble labels that say "all real images"
-        #misleading_labels = torch.zeros((128*2, 1)).cuda()
-        
+        batch_metrics["loss_discriminator"].backward()
+        optimizer['discriminator'].step()
         # Train the generator
-        #generated_sequence = self.model["generator"](images) #this needs to be redone !!!!!!!
-        #generated_sequence = generated_sequence.reshape(-1,2,1000)
-        #predictions = self.model["discriminator"](generated_sequence)
-        #batch_metrics["loss_generator"] = \
-        #  F.binary_cross_entropy_with_logits(predictions, misleading_labels)
+        misleading_labels = torch.zeros((128*2, 1)).cuda()
+        
+        generated_sequence = self.model["generator"](imagesStgGen) #this needs to be redone !!!!!!!
+        generated_sequence = generated_sequence.reshape(-1,2,1000)
+        predictions = self.model["discriminator"](generated_sequence)
+        #print("generator predictions ", predictions.shape)
+        batch_metrics["loss_generator"] = \
+          F.binary_cross_entropy_with_logits(predictions, misleading_labels)
+        batch_metrics["loss_generator"].backward()
+        optimizer['generator'].step()
+        
+        #batch_metrics["loss_generator"].step()
         #print("batchmetrics",str(**batch_metrics))
         self.batch_metrics.update(**batch_metrics)
 
@@ -179,17 +166,8 @@ runner.train(
     model=model, 
     optimizer=optimizer,
     loaders=loaders,
-    callbacks=[
-        #dl.OptimizerCallback(
-        #    optimizer_key="generator", 
-        #    metric_key="loss_generator"
-        #),
-        dl.OptimizerCallback(
-            optimizer_key="discriminator", 
-            metric_key="loss_discriminator"
-        ),
-    ],
-    main_metric="loss_discriminator",
+    callbacks=None,
+    main_metric="loss_generator",
     num_epochs=3,
     verbose=True,
     logdir="./logs_gan2",
