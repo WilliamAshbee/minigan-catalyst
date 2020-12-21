@@ -89,11 +89,16 @@ def plot_all( sample = None, model = None, labels = None):
         with torch.no_grad():
             global numpoints
 
-            pred = model(sample.unsqueeze(0).cuda())
-            predres = (int)(pred.shape[1]/2)
+            print("sample", sample.shape)
+            temp = sample.unsqueeze(0).cuda()
+            temp = torch.cat([temp,temp]).cuda()
+            pred = model(temp)
+            pred = pred[0]
+            print('pred', pred.shape)
+            predres = (int)(pred.shape[0]/2)
             #print(pred.shape,predres, predres/2)
-            X = pred[0,:predres]
-            Y = pred[0,-predres:]
+            X = pred[:predres]
+            Y = pred[-predres:]
             #print('X',X.shape)
             #print(Y.shape)
 
@@ -160,6 +165,7 @@ class DonutDataset(torch.utils.data.Dataset):
     
     @staticmethod
     def displayCanvas(dataset, model):
+        #model.setBatchSize(batch_size = 1)
         for i in range(100):
             sample, labels = dataset[i]
             plt.subplot(10,10,i+1)

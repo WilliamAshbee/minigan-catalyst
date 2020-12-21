@@ -66,6 +66,10 @@ class LSTMClassifier(nn.Module):
         lstm_out, (h, c) = self.lstm(x, hidden)
         y  = self.hidden2label(lstm_out[-1])
         return y
+    
+    def setBatchSize(self, batch_size = 1):
+        self.batch_size = batch_size
+
 
 
 def get_model(): # tuples of (batch_size, model)
@@ -172,8 +176,9 @@ runner.train(
     loaders=loaders,
     callbacks=None,
     main_metric="loss_generator",
-    num_epochs=3,
+    num_epochs=1,
     verbose=True,
     logdir="./logs_gan2",   
 )
 
+DonutDataset.displayCanvas(dataset_val,model['generator'])
