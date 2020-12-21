@@ -136,9 +136,13 @@ class CustomRunner(dl.Runner):
         generated_sequence = generated_sequence.reshape(-1,2,1000)
 
         combined_sequence = torch.cat([generated_sequence,sequencegtstgdisc[128:]], axis = 0).cuda()
-        labels = torch.zeros((256,1)).cuda()
-        labels[-128:] = 1
-        labels = labels.detach().clone().cuda()
+        
+        
+        # Assemble labels discriminating real from fake images
+        labels = torch.cat([
+            torch.ones((128, 1)), torch.zeros((128, 1))
+        ]).cuda()
+        
         predictions = self.model["discriminator"](combined_sequence)
         batch_metrics["loss_discriminator"] = \
           F.binary_cross_entropy_with_logits(predictions, labels)
@@ -170,6 +174,6 @@ runner.train(
     main_metric="loss_generator",
     num_epochs=3,
     verbose=True,
-    logdir="./logs_gan2",
+    logdir="./logs_gan2",   
 )
 
