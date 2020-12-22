@@ -8,7 +8,7 @@ class MLP(nn.Module):
 
     def __init__(self):
         super(MLP, self).__init__()
-        self.hidden_dim = 512
+        self.hidden_dim = 3*32*32
         self.featurevector = None
         self.mlp = nn.Sequential(
             nn.Linear(1000*2+self.hidden_dim, self.hidden_dim),
@@ -21,7 +21,10 @@ class MLP(nn.Module):
             nn.Sigmoid()
         )
     def init_hidden(self,hidden):
-        self.featurevector = hidden
+        first = hidden.shape[0]
+        #print('hidden',hidden.shape)
+        self.featurevector = hidden.reshape(first,-1)
+
         return (None, None)
 
 
@@ -32,5 +35,5 @@ class MLP(nn.Module):
         #print(x.shape)
         
         x = torch.cat([x,self.featurevector],1)
-        assert x.shape == (128,2512)
+        assert x.shape == (128,2000+self.hidden_dim)
         return self.mlp(x)

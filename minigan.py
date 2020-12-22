@@ -184,7 +184,7 @@ class CustomRunner(dl.Runner):
 
         #train discriminator
         generated_sequence = self.model['generator'](imagesStgDis[64:])
-        generated_sequence = generated_sequence.reshape(-1, 2, 1000)
+        #generated_sequence = generated_sequence.reshape(-1, 2, 1000)
 
         combined_sequence = torch.cat(
             [generated_sequence, sequencegtstgdisc[64:]], axis=0).cuda()
@@ -194,7 +194,8 @@ class CustomRunner(dl.Runner):
             torch.ones((64, 1)), torch.zeros((64, 1))
         ]).cuda()
 
-        hidden =  resnetFA(torch.cat([imagesStgDis[64:],imagesStgDis[64:]]))
+        #hidden =  resnetFA(torch.cat([imagesStgDis[64:],imagesStgDis[64:]]))
+        hidden =  torch.cat([imagesStgDis[64:],imagesStgDis[64:]])
         h0, c0 = self.model['discriminator'].init_hidden(hidden)
 
         #print('h0', h0.shape)
@@ -210,11 +211,11 @@ class CustomRunner(dl.Runner):
 
         generated_sequence = self.model["generator"](
             imagesStgGen)  # this needs to be redone !!!!!!!
-        generated_sequence = generated_sequence.reshape(-1, 2, 1000)
+        #generated_sequence = generated_sequence.reshape(-1, 2, 1000)
 
         # resnetFA(generated_sequence))
-        hidden =  resnetFA(imagesStgGen)
-        
+        #hidden =  resnetFA(imagesStgGen)
+        hidden = imagesStgGen
         self.model['discriminator'].init_hidden(hidden)
         predictions = self.model["discriminator"](generated_sequence)
         #print("generator predictions ", predictions.shape)
@@ -240,4 +241,4 @@ runner.train(
     logdir="./logs_gan2",
 )
 
-DonutDataset.displayCanvas(dataset_val, model['generator'])
+DonutDataset.displayCanvas(dataset_train, model['generator'])
