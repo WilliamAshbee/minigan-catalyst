@@ -17,6 +17,9 @@ class MLPGEN(nn.Module):
             nn.Linear(self.hidden_dim, self.hidden_dim),
             nn.ReLU(True),
             nn.Dropout(),
+            nn.Linear(self.hidden_dim, self.hidden_dim),
+            nn.ReLU(True),
+            nn.Dropout(),
             nn.Linear(self.hidden_dim, 2000)
         )
     
