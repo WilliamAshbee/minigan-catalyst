@@ -15,8 +15,7 @@ from torch.autograd import Variable
 import torchvision
 import numpy as np
 from mlp import MLP
-
-
+from mlpgen import MLPGEN
 cuda = True
 latent_dim = 128
 
@@ -129,10 +128,11 @@ def get_model():  # tuples of (batch_size, model)
 ##############lstm
 
 
-generator = resnet18(pretrained=False, progress=True).cuda()
+#generator = resnet18(pretrained=False, progress=True).cuda()
+generator = MLPGEN().cuda()
 
 #discriminator = get_model().cuda()
-discriminator = MLP()
+discriminator = MLP().cuda()
 model = {"generator": generator, "discriminator": discriminator}
 #model = {"discriminator": discriminator}
 optimizer = {
@@ -242,7 +242,7 @@ runner.train(
     loaders=loaders,
     callbacks=None,
     main_metric="loss_generator",
-    num_epochs=30,
+    num_epochs=40,
     verbose=True,
     logdir="./logs_gan2",
 )
