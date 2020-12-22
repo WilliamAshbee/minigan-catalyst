@@ -8,13 +8,6 @@ global numpoints
 numpoints = 1000
 side = 32
 
-global background
-background = torch.zeros(2,side,side)
-for i in range(side):
-    for j in range(side):
-        background[0,i,j] = j
-        background[1,i,j] = i
-
 
 def donut_matrix(length = 10):
     radiusMax = side /3
@@ -154,8 +147,6 @@ class DonutDataset(torch.utils.data.Dataset):
         #canvas = torch.from_numpy(canvas)
         canvas = canvas.repeat(3, 1, 1).float()
         assert canvas.shape == (3,side,side)
-        canvas = torch.cat([canvas,background], dim = 0)
-        assert canvas.shape == (5,side,side)
         points = self.values["points"]
         points = points[idx,:,:]
         #points = torch.from_numpy(points)

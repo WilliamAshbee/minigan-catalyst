@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader, TensorDataset, RandomSampler
 from torch.autograd import Variable
 import torchvision
 import numpy as np
+from mlp import MLP
 
 
 cuda = True
@@ -130,7 +131,8 @@ def get_model():  # tuples of (batch_size, model)
 
 generator = resnet18(pretrained=False, progress=True).cuda()
 
-discriminator = get_model().cuda()
+#discriminator = get_model().cuda()
+discriminator = MLP()
 model = {"generator": generator, "discriminator": discriminator}
 #model = {"discriminator": discriminator}
 optimizer = {
@@ -160,7 +162,7 @@ loaders = {"train": loader_train}
 
 torch.autograd.set_detect_anomaly(True)
 
-resnetFA = torchvision.models.resnet18(pretrained=True)
+resnetFA = torchvision.models.resnet18(pretrained=True).cuda()
 resnetFA.fc = nn.Sequential()
 
 
@@ -192,8 +194,8 @@ class CustomRunner(dl.Runner):
             torch.ones((64, 1)), torch.zeros((64, 1))
         ]).cuda()
 
-        # resnetFA(combined_sequence))
-        h0, c0 = self.model['discriminator'].init_hidden()
+        hidden =  resnetFA(torch.cat([imagesStgDis[64:],imagesStgDis[64:]]))
+        h0, c0 = self.model['discriminator'].init_hidden(hidden)
 
         #print('h0', h0.shape)
         #return
@@ -211,7 +213,9 @@ class CustomRunner(dl.Runner):
         generated_sequence = generated_sequence.reshape(-1, 2, 1000)
 
         # resnetFA(generated_sequence))
-        self.model['discriminator'].init_hidden()
+        hidden =  resnetFA(imagesStgGen)
+        
+        self.model['discriminator'].init_hidden(hidden)
         predictions = self.model["discriminator"](generated_sequence)
         #print("generator predictions ", predictions.shape)
         batch_metrics["loss_generator"] = \
