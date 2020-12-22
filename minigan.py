@@ -182,30 +182,36 @@ class CustomRunner(dl.Runner):
             #images = torch.cat([images,images,images,images,images,images,images,images])
             #sequence = torch.cat([sequence,sequence,sequence,sequence,sequence,sequence,sequence,sequence])
 
-        #train discriminator
-        generated_sequence = self.model['generator'](imagesStgDis[64:])
+        #train discriminator fake
+        generated_sequence = self.model['generator'](imagesStgDis)
         #generated_sequence = generated_sequence.reshape(-1, 2, 1000)
 
-        combined_sequence = torch.cat(
-            [generated_sequence, sequencegtstgdisc[64:]], axis=0).cuda()
-
-        # Assemble labels discriminating real from fake images
-        labels = torch.cat([
-            torch.ones((64, 1)), torch.zeros((64, 1))
-        ]).cuda()
+        fake_labels = torch.zeros(128,1).cuda()
 
         #hidden =  resnetFA(torch.cat([imagesStgDis[64:],imagesStgDis[64:]]))
-        hidden =  torch.cat([imagesStgDis[64:],imagesStgDis[64:]])
+        hidden =  imagesStgDis
         h0, c0 = self.model['discriminator'].init_hidden(hidden)
 
-        #print('h0', h0.shape)
-        #return
-        predictions = self.model["discriminator"](combined_sequence)
+        predictions = self.model["discriminator"](generated_sequence)
         batch_metrics["loss_discriminator"] = \
-            F.binary_cross_entropy_with_logits(predictions, labels)
+            F.binary_cross_entropy_with_logits(predictions, fake_labels)
 
         batch_metrics["loss_discriminator"].backward()
         optimizer['discriminator'].step()
+
+        real_labels = torch.ones(128,1).cuda()
+
+        #hidden =  resnetFA(torch.cat([imagesStgDis[64:],imagesStgDis[64:]]))
+        hidden =  imagesStgDis
+        h0, c0 = self.model['discriminator'].init_hidden(hidden)
+
+        predictions = self.model["discriminator"](sequencegtstgdisc)
+        batch_metrics["loss_discriminator"] = \
+            F.binary_cross_entropy_with_logits(predictions, real_labels)
+
+        batch_metrics["loss_discriminator"].backward()
+        optimizer['discriminator'].step()
+
         # Train the generator
         misleading_labels = torch.zeros((64*2, 1)).cuda()
 
