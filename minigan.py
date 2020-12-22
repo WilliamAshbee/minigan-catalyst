@@ -12,10 +12,15 @@ from DonutDataset import DonutDataset
 from torch.utils import data
 from torch.utils.data import DataLoader, TensorDataset, RandomSampler
 from torch.autograd import Variable
+import torchvision
+
+
 cuda = True
 latent_dim = 128
 
+
 ##############lstm
+## Multilayer LSTM based classifier taking in 200 dimensional fixed time series inputs
 ## Multilayer LSTM based classifier taking in 200 dimensional fixed time series inputs
 class LSTMClassifier(nn.Module):
 
@@ -26,6 +31,8 @@ class LSTMClassifier(nn.Module):
         self.batch_size = batch_size
         self.num_dir = 2 if bidirectional else 1
         self.num_layers = num_layers
+        self.h0 = None
+        self.c0 = None
 
         self.lstm = nn.LSTM(
                 input_size=in_dim,
@@ -37,10 +44,10 @@ class LSTMClassifier(nn.Module):
 
         self.hidden2label = nn.Sequential(
             nn.Linear(hidden_dim*self.num_dir, hidden_dim),
-            nn.ReLU(inplace= False),
+            nn.ReLU(True),
             nn.Dropout(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(inplace = False),
+            nn.ReLU(True),
             nn.Dropout(),
             nn.Linear(hidden_dim, num_classes),
             nn.Sigmoid()
@@ -48,39 +55,60 @@ class LSTMClassifier(nn.Module):
 
         self.hidden = self.init_hidden()
 
-    def init_hidden(self):
-        if cuda:
-            h0 = Variable(torch.zeros(self.num_layers*self.num_dir, self.batch_size, self.hidden_dim).cuda())
-            c0 = Variable(torch.zeros(self.num_layers*self.num_dir, self.batch_size, self.hidden_dim).cuda())
+    def setH0(self, h0):
+      self.h0 = h0
+
+    def get_hidden(self):
+      return self.init_hidden(self.h0)
+    
+    def init_hidden(self, h0 = None):
+        if h0 is None:
+          if cuda:
+              h0 = Variable(torch.zeros(self.num_layers*self.num_dir, self.batch_size, self.hidden_dim).cuda())
+              c0 = Variable(torch.zeros(self.num_layers*self.num_dir, self.batch_size, self.hidden_dim).cuda())
+              self.h0 = h0
+              self.c0 = c0
+          else:
+              h0 = Variable(torch.zeros(self.num_layers*self.num_dir, self.batch_size, self.hidden_dim))
+              c0 = Variable(torch.zeros(self.num_layers*self.num_dir, self.batch_size, self.hidden_dim))
+              self.h0 = h0
+              self.c0 = c0
+ 
         else:
-            h0 = Variable(torch.zeros(self.num_layers*self.num_dir, self.batch_size, self.hidden_dim))
-            c0 = Variable(torch.zeros(self.num_layers*self.num_dir, self.batch_size, self.hidden_dim))
-        return (h0, c0)
+          if cuda:
+              self.h0 = h0.cuda()
+              c0 = Variable(torch.zeros(self.num_layers*self.num_dir, self.batch_size, self.hidden_dim).cuda())
+              self.c0 = c0
+          else:
+              self.h0 = h0
+              c0 = Variable(torch.zeros(self.num_layers*self.num_dir, self.batch_size, self.hidden_dim))
+              self.c0 = c0
+        
+        return (self.h0, self.c0)
 
     def forward(self, x): # x is (batch_size, 1, 200), permute to (200, batch_size, 1)
-        #print("permute",x.shape)
         x = x.permute(2, 0, 1)
         # See: https://discuss.pytorch.org/t/solved-why-we-need-to-detach-variable-which-contains-hidden-representation/1426/2
-        hidden = self.init_hidden()
-        hidden = tuple([each.data for each in hidden])
-        lstm_out, (h, c) = self.lstm(x, hidden)
+        if self.h0 is None:
+          self.init_hidden()
+        lstm_out, (h, c) = self.lstm(x, self.get_hidden())
         y  = self.hidden2label(lstm_out[-1])
+        #self.h0 = None
         return y
     
     def setBatchSize(self, batch_size = 1):
         self.batch_size = batch_size
 
 
-
 def get_model(): # tuples of (batch_size, model)
     return LSTMClassifier(
         in_dim=2,
-        hidden_dim=120,
+        hidden_dim=512,
         num_layers=3,
         dropout=0.8,
         bidirectional=True,
         num_classes=1,#bce loss for discriminator
-        batch_size=256
+        batch_size=128
     )
 
 ##############lstm
@@ -100,10 +128,10 @@ optimizer = {
 #    "train": DataLoader(MNIST(os.getcwd(), train=True, download=True, transform=ToTensor()), batch_size=32),
 #}
 
-dataset_train = DonutDataset(256*2)
-dataset_val = DonutDataset(256)
+dataset_train = DonutDataset(128*10)
+dataset_val = DonutDataset(128*2)
 
-mini_batch = 256
+mini_batch = 128
 loader_train = data.DataLoader(
     dataset_train, batch_size=mini_batch,
     sampler=RandomSampler(data_source = dataset_train),
@@ -118,35 +146,39 @@ loader_val = data.DataLoader(
 loaders = {"train": loader_train}
 
 torch.autograd.set_detect_anomaly(True)
+
+resnetFA = torchvision.models.resnet18(pretrained=True)
+resnetFA.fc = nn.Sequential()
+
 class CustomRunner(dl.Runner):
 
     def _handle_batch(self, batch):
         
         imagesStgGen = batch[0].detach().clone().cuda()
         imagesStgDis = batch[0].detach().clone().cuda()
-        
         #print('images',images.shape)
         sequencegtstggen = batch[1].detach().clone().cuda()
         sequencegtstgdisc = batch[1].detach().clone().cuda()
         #real_images, _ = batch
         batch_metrics = {}
-        if batch[0].shape[0] != 256:
+        if batch[0].shape[0] != 128:
             print("this is wrong!!!",batch[0].shape)
             #images = torch.cat([images,images,images,images,images,images,images,images])
             #sequence = torch.cat([sequence,sequence,sequence,sequence,sequence,sequence,sequence,sequence])
 
         #train discriminator        
-        generated_sequence = self.model['generator'](imagesStgDis[128:])
+        generated_sequence = self.model['generator'](imagesStgDis[64:])
         generated_sequence = generated_sequence.reshape(-1,2,1000)
 
-        combined_sequence = torch.cat([generated_sequence,sequencegtstgdisc[128:]], axis = 0).cuda()
+        combined_sequence = torch.cat([generated_sequence,sequencegtstgdisc[64:]], axis = 0).cuda()
         
         
         # Assemble labels discriminating real from fake images
         labels = torch.cat([
-            torch.ones((128, 1)), torch.zeros((128, 1))
+            torch.ones((64, 1)), torch.zeros((64, 1))
         ]).cuda()
         
+        self.model['discriminator'].init_hidden()#resnetFA(combined_sequence))
         predictions = self.model["discriminator"](combined_sequence)
         batch_metrics["loss_discriminator"] = \
           F.binary_cross_entropy_with_logits(predictions, labels)
@@ -154,10 +186,13 @@ class CustomRunner(dl.Runner):
         batch_metrics["loss_discriminator"].backward()
         optimizer['discriminator'].step()
         # Train the generator
-        misleading_labels = torch.zeros((128*2, 1)).cuda()
+        misleading_labels = torch.zeros((64*2, 1)).cuda()
         
         generated_sequence = self.model["generator"](imagesStgGen) #this needs to be redone !!!!!!!
         generated_sequence = generated_sequence.reshape(-1,2,1000)
+        
+        
+        self.model['discriminator'].init_hidden()#resnetFA(generated_sequence))
         predictions = self.model["discriminator"](generated_sequence)
         #print("generator predictions ", predictions.shape)
         batch_metrics["loss_generator"] = \
