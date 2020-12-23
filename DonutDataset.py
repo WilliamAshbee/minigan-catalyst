@@ -154,14 +154,14 @@ class DonutDataset(torch.utils.data.Dataset):
         return canvas, points
     
     @staticmethod
-    def displayCanvas(dataset, model):
+    def displayCanvas(title,dataset, model):
         #model.setBatchSize(batch_size = 1)
         for i in range(100):
             sample, labels = dataset[i]
             plt.subplot(10,10,i+1)
             plot_all(sample = sample,model=model, labels = labels)
             plt.axis('off')
-        plt.savefig('finalplot.png',dpi=600)
+        plt.savefig(title,dpi=600)
 
 #dataset = DonutDataset(length = 100)
 #DonutDataset.displayCanvas(dataset, model = None)

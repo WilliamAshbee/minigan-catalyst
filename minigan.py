@@ -101,7 +101,7 @@ class PretrainingDiscriminatorRunner(dl.Runner):
         labels = torch.cat([
             one_labels, zero_labels
         ]).cuda()
-        predictions = self.model["discriminator"](torch.cat([generated_sequence,sequencegtstgdisc]))
+        predictions = self.model["discriminator"](torch.cat([sequencegtstgdisc, generated_sequence])) #1s,0s
         batch_metrics["loss_discriminator"] = \
             F.binary_cross_entropy_with_logits(predictions, labels)
 
@@ -146,7 +146,7 @@ class CustomRunner(dl.Runner):
         optimizer['discriminator'].step()
 
         # Train the generator
-        misleading_labels = torch.zeros((64*2, 1)).cuda()
+        misleading_labels = torch.ones((64*2, 1)).cuda() #reward for fooling the discriminator
 
         generated_sequence = self.model["generator"](
             imagesStgGen) 
@@ -172,6 +172,7 @@ runnergen.train(
     verbose=True,
     logdir="./logs_gan2"
 )
+"""
 runnerdisc = PretrainingDiscriminatorRunner()
 runnerdisc.train(
     model=model,
@@ -196,6 +197,7 @@ runner.train(
     verbose=True,
     logdir="./logs_gan2",
 )
+"""
 
-
-DonutDataset.displayCanvas(dataset_train, model['generator'])
+DonutDataset.displayCanvas('training-set.png', dataset_train, model['generator'])
+DonutDataset.displayCanvas('validation-set.png', dataset_val, model['generator'])
