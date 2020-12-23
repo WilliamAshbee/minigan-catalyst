@@ -90,28 +90,20 @@ class PretrainingDiscriminatorRunner(dl.Runner):
         sequencegtstgdisc = batch[1].detach().clone().cuda()
         batch_metrics = {}
 
-        #train discriminator fake
+        #train discriminator
         generated_sequence = self.model['generator'](imagesStgDis)
-        fake_labels = torch.zeros(128,1).cuda()
-        hidden =  imagesStgDis
-        h0, c0 = self.model['discriminator'].init_hidden(hidden)
-
-        predictions = self.model["discriminator"](generated_sequence)
-        batch_metrics["loss_discriminator"] = \
-            F.binary_cross_entropy_with_logits(predictions, fake_labels)
-
-        batch_metrics["loss_discriminator"].backward()
-        optimizer['discriminator'].step()
-
-        real_labels = torch.ones(128,1).cuda()
-
+        one_labels = torch.ones(128,1).cuda()
+        zero_labels = torch.zeros(128,1).cuda()
         #hidden =  resnetFA(torch.cat([imagesStgDis[64:],imagesStgDis[64:]]))
-        hidden =  imagesStgDis
+        hidden =  torch.cat([imagesStgDis,imagesStgDis])
         h0, c0 = self.model['discriminator'].init_hidden(hidden)
 
-        predictions = self.model["discriminator"](sequencegtstgdisc)
+        labels = torch.cat([
+            one_labels, zero_labels
+        ]).cuda()
+        predictions = self.model["discriminator"](torch.cat([generated_sequence,sequencegtstgdisc]))
         batch_metrics["loss_discriminator"] = \
-            F.binary_cross_entropy_with_logits(predictions, real_labels)
+            F.binary_cross_entropy_with_logits(predictions, labels)
 
         batch_metrics["loss_discriminator"].backward()
         optimizer['discriminator'].step()
@@ -210,18 +202,17 @@ runnerdisc.train(
 )
 
 
-"""runner = CustomRunner()
+runner = CustomRunner()
 runner.train(
     model=model,
     optimizer=optimizer,
     loaders=loaders,
     callbacks=None,
     main_metric="loss_generator",
-    num_epochs=40,
+    num_epochs=70,
     verbose=True,
     logdir="./logs_gan2",
 )
-"""
 
 
 DonutDataset.displayCanvas(dataset_train, model['generator'])

@@ -35,5 +35,5 @@ class MLP(nn.Module):
         #print(x.shape)
         
         x = torch.cat([x,self.featurevector],1)
-        assert x.shape == (128,2000+self.hidden_dim)
+        assert x.shape == (first,2000+self.hidden_dim)
         return self.mlp(x)
