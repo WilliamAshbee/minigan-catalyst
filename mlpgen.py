@@ -20,7 +20,9 @@ class MLPGEN(nn.Module):
             nn.Linear(self.hidden_dim, self.hidden_dim),
             nn.ReLU(True),
             nn.Dropout(),
-            nn.Linear(self.hidden_dim, 2000)
+            nn.Linear(self.hidden_dim, 2000),
+            nn.Sigmoid()
+        
         )
     
 
@@ -32,4 +34,4 @@ class MLPGEN(nn.Module):
             print('bad shape', x.shape)
 
         assert x.shape == (first,self.hidden_dim)
-        return self.mlp(x)
+        return 32.0*self.mlp(x)

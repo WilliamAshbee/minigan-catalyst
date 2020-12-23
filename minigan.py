@@ -31,14 +31,14 @@ model = {"generator": generator, "discriminator": discriminator}
 modelgen = {"generator": generator}
 #model = {"discriminator": discriminator}
 optimizer = {
-    "generator": torch.optim.Adam(generator.parameters(), lr=0.0003, betas=(0.5, 0.999)),
-    "discriminator": torch.optim.Adam(discriminator.parameters(), lr=0.0003, betas=(0.5, 0.999))
+    "generator": torch.optim.Adam(generator.parameters(), lr=0.00005, betas=(0.5, 0.999)),
+    "discriminator": torch.optim.Adam(discriminator.parameters(), lr=0.00005, betas=(0.5, 0.999))
 }
 optimizergen = {
     "generator": torch.optim.Adam(generator.parameters(), lr=0.00005, betas=(0.5, 0.999))
 }
 optimizerdisc = {
-    "generator": torch.optim.Adam(generator.parameters(), lr=0.00005, betas=(0.5, 0.999))
+    "discriminator": torch.optim.Adam(discriminator.parameters(), lr=0.00005, betas=(0.5, 0.999))
 }
 #loaders = {
 #    "train": DataLoader(MNIST(os.getcwd(), train=True, download=True, transform=ToTensor()), batch_size=32),
@@ -80,7 +80,7 @@ class PretrainingGeneratorRunner(dl.Runner):
         batch_metrics["loss_generator"] = \
             my_loss(generated_sequence, sequencegtstggen)
         batch_metrics["loss_generator"].backward()
-        optimizer['generator'].step()
+        optimizergen['generator'].step()
         self.batch_metrics.update(**batch_metrics)
 
 
@@ -106,7 +106,7 @@ class PretrainingDiscriminatorRunner(dl.Runner):
             F.binary_cross_entropy_with_logits(predictions, labels)
 
         batch_metrics["loss_discriminator"].backward()
-        optimizer['discriminator'].step()
+        optimizerdisc['discriminator'].step()
 
         self.batch_metrics.update(**batch_metrics)
 
@@ -114,28 +114,18 @@ class CustomRunner(dl.Runner):
 
     def _handle_batch(self, batch):
 
+        
         imagesStgGen = batch[0].detach().clone().cuda()
         imagesStgDis = batch[0].detach().clone().cuda()
-        #print('images',images.shape)
         sequencegtstggen = batch[1].detach().clone().cuda()
         sequencegtstgdisc = batch[1].detach().clone().cuda()
-        #real_images, _ = batch
         batch_metrics = {}
-        if batch[0].shape[0] != 128:
-            print("this is wrong!!!", batch[0].shape)
-            #images = torch.cat([images,images,images,images,images,images,images,images])
-            #sequence = torch.cat([sequence,sequence,sequence,sequence,sequence,sequence,sequence,sequence])
-
+        
         #train discriminator fake
         generated_sequence = self.model['generator'](imagesStgDis)
-        #generated_sequence = generated_sequence.reshape(-1, 2, 1000)
-
         fake_labels = torch.zeros(128,1).cuda()
-
-        #hidden =  resnetFA(torch.cat([imagesStgDis[64:],imagesStgDis[64:]]))
         hidden =  imagesStgDis
         h0, c0 = self.model['discriminator'].init_hidden(hidden)
-
         predictions = self.model["discriminator"](generated_sequence)
         batch_metrics["loss_discriminator"] = \
             F.binary_cross_entropy_with_logits(predictions, fake_labels)
@@ -143,9 +133,8 @@ class CustomRunner(dl.Runner):
         batch_metrics["loss_discriminator"].backward()
         optimizer['discriminator'].step()
 
+        #train discriminator real
         real_labels = torch.ones(128,1).cuda()
-
-        #hidden =  resnetFA(torch.cat([imagesStgDis[64:],imagesStgDis[64:]]))
         hidden =  imagesStgDis
         h0, c0 = self.model['discriminator'].init_hidden(hidden)
 
@@ -160,11 +149,7 @@ class CustomRunner(dl.Runner):
         misleading_labels = torch.zeros((64*2, 1)).cuda()
 
         generated_sequence = self.model["generator"](
-            imagesStgGen)  # this needs to be redone !!!!!!!
-        #generated_sequence = generated_sequence.reshape(-1, 2, 1000)
-
-        # resnetFA(generated_sequence))
-        #hidden =  resnetFA(imagesStgGen)
+            imagesStgGen) 
         hidden = imagesStgGen
         self.model['discriminator'].init_hidden(hidden)
         predictions = self.model["discriminator"](generated_sequence)
@@ -174,8 +159,6 @@ class CustomRunner(dl.Runner):
         batch_metrics["loss_generator"].backward()
         optimizer['generator'].step()
 
-        #batch_metrics["loss_generator"].step()
-        #print("batchmetrics",str(**batch_metrics))
         self.batch_metrics.update(**batch_metrics)
 
 runnergen = PretrainingGeneratorRunner()
@@ -196,7 +179,7 @@ runnerdisc.train(
     loaders=loaders,
     callbacks=None,
     main_metric="loss_discriminator",
-    num_epochs=70,
+    num_epochs=10,
     verbose=True,
     logdir="./logs_gan2"
 )
@@ -209,7 +192,7 @@ runner.train(
     loaders=loaders,
     callbacks=None,
     main_metric="loss_generator",
-    num_epochs=70,
+    num_epochs=30,
     verbose=True,
     logdir="./logs_gan2",
 )

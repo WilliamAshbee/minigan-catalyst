@@ -20,6 +20,8 @@ class MLP(nn.Module):
             nn.Linear(self.hidden_dim, 1),
             nn.Sigmoid()
         )
+
+
     def init_hidden(self,hidden):
         first = hidden.shape[0]
         #print('hidden',hidden.shape)
