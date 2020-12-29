@@ -67,7 +67,17 @@ resnetFA = torchvision.models.resnet18(pretrained=True).cuda()
 resnetFA.fc = nn.Sequential()
 
 def my_loss(output, target):
-    loss = torch.mean((output - target)**4)
+    print(output.shape,'outputshape')
+    outx = output[:,:1000]
+    outy = output[:,-1000:]
+    gtx = target[:,:1000]
+    gty = target[:,-1000:]
+    loss = torch.mean(torch.abs(output - target))
+    loss += torch.mean(torch.abs(gtx[:,:-1] - outx[:,1:]))
+    loss += torch.mean(torch.abs(gty[:,:-1] - outy[:,1:]))
+    
+    loss += torch.mean(torch.abs(gtx[:,1:] - outx[:,:-1]))
+    loss += torch.mean(torch.abs(gty[:,1:] - outy[:,:-1]))
     return loss
 
 class PretrainingGeneratorRunner(dl.Runner):
