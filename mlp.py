@@ -8,7 +8,7 @@ class MLP(nn.Module):
 
     def __init__(self):
         super(MLP, self).__init__()
-        self.hidden_dim = 3*32*32
+        self.hidden_dim = 5*32*32
         self.featurevector = None
         self.mlp = nn.Sequential(
             nn.Linear(1000*2+self.hidden_dim, self.hidden_dim),

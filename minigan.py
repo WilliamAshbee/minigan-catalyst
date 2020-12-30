@@ -31,14 +31,14 @@ model = {"generator": generator, "discriminator": discriminator}
 modelgen = {"generator": generator}
 #model = {"discriminator": discriminator}
 optimizer = {
-    "generator": torch.optim.Adam(generator.parameters(), lr=0.00005, betas=(0.5, 0.999)),
-    "discriminator": torch.optim.Adam(discriminator.parameters(), lr=0.00005, betas=(0.5, 0.999))
+    "generator": torch.optim.Adam(generator.parameters(), lr=0.00005, betas=(0.5, 0.999), weight_decay=0.1),
+    "discriminator": torch.optim.Adam(discriminator.parameters(), lr=0.00005, betas=(0.5, 0.999), weight_decay=0.1)
 }
 optimizergen = {
-    "generator": torch.optim.Adam(generator.parameters(), lr=0.00005, betas=(0.5, 0.999))
+    "generator": torch.optim.Adam(generator.parameters(), lr=0.00005, betas=(0.5, 0.999), weight_decay=0.1)
 }
 optimizerdisc = {
-    "discriminator": torch.optim.Adam(discriminator.parameters(), lr=0.00005, betas=(0.5, 0.999))
+    "discriminator": torch.optim.Adam(discriminator.parameters(), lr=0.00005, betas=(0.5, 0.999), weight_decay=0.1)
 }
 #loaders = {
 #    "train": DataLoader(MNIST(os.getcwd(), train=True, download=True, transform=ToTensor()), batch_size=32),
@@ -58,8 +58,8 @@ loader_val = data.DataLoader(
     sampler=RandomSampler(data_source=dataset_val),
     num_workers=4)
 
-#loaders = {"train": loader_train, "valid": loader_val}
-loaders = {"train": loader_train}
+loaders = {"train": loader_train, "valid": loader_val}
+#loaders = {"train": loader_train}
 
 torch.autograd.set_detect_anomaly(True)
 
@@ -68,21 +68,22 @@ resnetFA.fc = nn.Sequential()
 
 def my_loss(output, target):
     #print(output.shape,'outputshape')
-    outx = output[:,:1000]
-    outy = output[:,-1000:]
-    gtx = target[:,:1000]
-    gty = target[:,-1000:]
+    #outx = output[:,:1000]
+    #outy = output[:,-1000:]
+    #gtx = target[:,:1000]
+    #gty = target[:,-1000:]
     #print ('gt',gtx,gty)
     loss = torch.mean(torch.abs(output - target))
-    loss += torch.mean(torch.abs(gtx[:,:-1] - outx[:,1:]))
-    loss += torch.mean(torch.abs(gty[:,:-1] - outy[:,1:]))
+    #loss += torch.mean(torch.abs(gtx[:,:-1] - outx[:,1:]))
+    #loss += torch.mean(torch.abs(gty[:,:-1] - outy[:,1:]))
     
-    loss += torch.mean(torch.abs(gtx[:,1:] - outx[:,:-1]))
-    loss += torch.mean(torch.abs(gty[:,1:] - outy[:,:-1]))
+    #loss += torch.mean(torch.abs(gtx[:,1:] - outx[:,:-1]))
+    #loss += torch.mean(torch.abs(gty[:,1:] - outy[:,:-1]))
     return loss
 
 class PretrainingGeneratorRunner(dl.Runner):
     def _handle_batch(self, batch):
+        #print('batch',batch)
         batch_metrics = {}
         imagesStgGen = batch[0].detach().clone().cuda()
         sequencegtstggen = batch[1].detach().clone().cuda()
@@ -90,8 +91,13 @@ class PretrainingGeneratorRunner(dl.Runner):
             imagesStgGen)
         batch_metrics["loss_generator"] = \
             my_loss(generated_sequence, sequencegtstggen)
-        batch_metrics["loss_generator"].backward()
-        optimizergen['generator'].step()
+        try:
+            batch_metrics["loss_generator"].backward()
+            optimizergen['generator'].step()
+        except:
+            print('validation') 
+               
+
         self.batch_metrics.update(**batch_metrics)
 
 
@@ -115,9 +121,11 @@ class PretrainingDiscriminatorRunner(dl.Runner):
         predictions = self.model["discriminator"](torch.cat([sequencegtstgdisc, generated_sequence])) #1s,0s
         batch_metrics["loss_discriminator"] = \
             F.binary_cross_entropy_with_logits(predictions, labels)
-
-        batch_metrics["loss_discriminator"].backward()
-        optimizerdisc['discriminator'].step()
+        try:
+            batch_metrics["loss_discriminator"].backward()
+            optimizerdisc['discriminator'].step()
+        except:
+            print('validation')
 
         self.batch_metrics.update(**batch_metrics)
 
@@ -140,10 +148,12 @@ class CustomRunner(dl.Runner):
         predictions = self.model["discriminator"](generated_sequence)
         batch_metrics["loss_discriminator"] = \
             F.binary_cross_entropy_with_logits(predictions, fake_labels)
-
-        batch_metrics["loss_discriminator"].backward()
-        optimizer['discriminator'].step()
-
+        try:
+            batch_metrics["loss_discriminator"].backward()
+            optimizer['discriminator'].step()
+        except:
+            print('validation')
+        
         #train discriminator real
         real_labels = torch.ones(128,1).cuda()
         hidden =  imagesStgDis
@@ -153,9 +163,11 @@ class CustomRunner(dl.Runner):
         batch_metrics["loss_discriminator"] = \
             F.binary_cross_entropy_with_logits(predictions, real_labels)
 
-        batch_metrics["loss_discriminator"].backward()
-        optimizer['discriminator'].step()
-
+        try:
+            batch_metrics["loss_discriminator"].backward()
+            optimizer['discriminator'].step()
+        except:
+            print('validation')
         # Train the generator
         misleading_labels = torch.ones((64*2, 1)).cuda() #reward for fooling the discriminator
 
@@ -167,9 +179,12 @@ class CustomRunner(dl.Runner):
         #print("generator predictions ", predictions.shape)
         batch_metrics["loss_generator"] = \
             F.binary_cross_entropy_with_logits(predictions, misleading_labels)
-        batch_metrics["loss_generator"].backward()
-        optimizer['generator'].step()
-
+        try:
+            batch_metrics["loss_generator"].backward()
+            optimizer['generator'].step()
+        except:
+            print('validation')
+        
         self.batch_metrics.update(**batch_metrics)
 
 runnergen = PretrainingGeneratorRunner()
@@ -179,11 +194,10 @@ runnergen.train(
     loaders=loaders,
     callbacks=None,
     main_metric="loss_generator",
-    num_epochs=70,
+    num_epochs=10,
     verbose=True,
     logdir="./logs_gan2"
 )
-"""
 runnerdisc = PretrainingDiscriminatorRunner()
 runnerdisc.train(
     model=model,
@@ -204,10 +218,9 @@ runner.train(
     loaders=loaders,
     callbacks=None,
     main_metric="loss_generator",
-    num_epochs=30,
+    num_epochs=10,
     verbose=True,
     logdir="./logs_gan2",
 )
-"""
 DonutDataset.displayCanvas('training-set.png', dataset_train, model['generator'])
 DonutDataset.displayCanvas('validation-set.png', dataset_val, model['generator'])
