@@ -67,11 +67,12 @@ resnetFA = torchvision.models.resnet18(pretrained=True).cuda()
 resnetFA.fc = nn.Sequential()
 
 def my_loss(output, target):
-    print(output.shape,'outputshape')
+    #print(output.shape,'outputshape')
     outx = output[:,:1000]
     outy = output[:,-1000:]
     gtx = target[:,:1000]
     gty = target[:,-1000:]
+    #print ('gt',gtx,gty)
     loss = torch.mean(torch.abs(output - target))
     loss += torch.mean(torch.abs(gtx[:,:-1] - outx[:,1:]))
     loss += torch.mean(torch.abs(gty[:,:-1] - outy[:,1:]))
@@ -208,6 +209,5 @@ runner.train(
     logdir="./logs_gan2",
 )
 """
-
 DonutDataset.displayCanvas('training-set.png', dataset_train, model['generator'])
 DonutDataset.displayCanvas('validation-set.png', dataset_val, model['generator'])

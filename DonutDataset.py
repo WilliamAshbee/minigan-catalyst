@@ -8,6 +8,14 @@ global numpoints
 numpoints = 1000
 side = 32
 
+rows = torch.zeros(32,32)
+columns = torch.zeros(32,32)
+
+
+for i in range(32):
+    columns[:,i] = i
+    rows[i,:] = i
+
 
 def donut_matrix(length = 10):
     radiusMax = side /3
@@ -108,8 +116,8 @@ def plot_all( sample = None, model = None, labels = None):
     else:
         #print(labels.shape)
 
-        X = labels[:numpoints,0]
-        Y = labels[:numpoints,1]
+        X = labels[:numpoints]
+        Y = labels[-numpoints:]
         s = [.001 for x in range(numpoints)]
         print(len(s))
         c = ['red' for x in range(numpoints)]
@@ -146,7 +154,9 @@ class DonutDataset(torch.utils.data.Dataset):
         
         #canvas = torch.from_numpy(canvas)
         canvas = canvas.repeat(3, 1, 1).float()
-        assert canvas.shape == (3,side,side)
+        #print('canvashape',canvas.shape)
+        canvas = torch.cat([canvas,columns.unsqueeze(0),rows.unsqueeze(0)])
+        assert canvas.shape == (5,side,side)
         points = self.values["points"]
         points = points[idx,:]
 
@@ -163,5 +173,5 @@ class DonutDataset(torch.utils.data.Dataset):
             plt.axis('off')
         plt.savefig(title,dpi=600)
 
-#dataset = DonutDataset(length = 100)
-#DonutDataset.displayCanvas(dataset, model = None)
+dataset = DonutDataset(length = 100)
+DonutDataset.displayCanvas('donut.png',dataset, model = None)
